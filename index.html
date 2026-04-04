@@ -35,10 +35,10 @@
     
     // 2. 填入 API Key (請將您的金鑰拆成兩段，直接貼上字串即可)
     // 範例：如果您的金鑰是 AIzaSyA123B456...
-    // KEY_PART_1 = "AIzaSyAj7DfAzrZURfD";
-    // KEY_PART_2 = "lnymPpeFb7dRQSWVGB5c";
-    const KEY_PART_1 = "AIzaSyAj7DfAzrZURfD"; 
-    const KEY_PART_2 = "lnymPpeFb7dRQSWVGB5c"; 
+    // KEY_PART_1 = "AIzaSyA123";
+    // KEY_PART_2 = "B456...";
+    const KEY_PART_1 = "AIzaSyAj7DfAzrZURfDl"; 
+    const KEY_PART_2 = "nymPpeFb7dRQSWVGB5c"; 
     
     let API_KEY = KEY_PART_1 + KEY_PART_2;
 
@@ -53,8 +53,8 @@
        API_KEY = "LOCKED"; 
     }
 
-    // 🌟 終極優化：多模型容錯陣列 (自動尋找您的 Key 支援的模型，防 404 當機)
-    const aiModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-1.0-pro'];
+    // 🌟 終極優化：精簡多模型容錯陣列，只保留最穩定的 1.5 系列
+    const aiModels = ['gemini-1.5-flash', 'gemini-1.5-pro'];
     // =================================================================
 
     // --- SVG 圖示元件 (無外部依賴) ---
@@ -246,7 +246,11 @@
               break; // 成功解析則跳出迴圈
             } catch (err) {
               lastError = err;
-              console.warn(`模型 ${model} 測試失敗，嘗試下一個...`);
+              console.warn(`模型 ${model} 測試失敗，原因: ${err.message}`);
+              // 🌟 智慧判斷：如果錯誤是 403 (無權限/網域被擋) 或 400 (金鑰錯誤)，代表根本連不上 API，切換模型也沒用，立刻中斷並回報真實錯誤！
+              if (err.message.includes('403') || err.message.includes('400')) {
+                break;
+              }
             }
           }
 
@@ -286,7 +290,7 @@
           sessionStorage.setItem('nuclearGameState', JSON.stringify({ timeLeft, gameState: nextState, logs: finalLogs }));
 
         } catch (error) {
-          setLogs(prev => [...prev, { role: 'system', text: `⚠️ 通訊干擾！無法聯繫總統：${error.message}` }]);
+          setLogs(prev => [...prev, { role: 'system', text: `⚠️ 通訊干擾！請確認 API 金鑰與 Google Cloud 網域設定。詳細錯誤：${error.message}` }]);
         } finally {
           setIsNegotiating(false);
         }
@@ -345,6 +349,7 @@ ${conversation}`;
               break;
             } catch(err) {
               textError = err;
+              if (err.message.includes('403') || err.message.includes('400')) break;
             }
           }
           if (!textData) throw textError;
@@ -392,7 +397,7 @@ ${conversation}`;
           newWin.document.close();
         } catch (error) {
           newWin.document.open();
-          newWin.document.write(`<h2 style="color:white; text-align:center; margin-top:20vh;">⚠️ 系統錯誤：無法連接聯合國伺服器。 ${error.message}</h2>`);
+          newWin.document.write(`<h2 style="color:white; text-align:center; margin-top:20vh;">⚠️ 系統錯誤：無法連接聯合國伺服器。詳細錯誤：${error.message}</h2>`);
           newWin.document.close();
         } finally {
           setIsGeneratingTreaty(false);
