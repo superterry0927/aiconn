@@ -1,351 +1,445 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>核彈危機談判系統 - 聯合國最高機密</title>
-  
-  <!-- 靜態資源 -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <style>
-    body { background-color: #09090b; }
-    .text-shadow-red { text-shadow: 0 0 20px rgba(239,68,68,0.8); }
-    .animate-spin-slow { animation: spin 4s linear infinite; }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球危機處理系統 | 核彈倒數談判</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for LED Timer and standard text -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans TC', 'sans-serif'],
+                        mono: ['Share Tech Mono', 'monospace'],
+                    },
+                    backgroundImage: {
+                        'hazard': 'repeating-linear-gradient(45deg, #000 0, #000 10px, #eab308 10px, #eab308 20px)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #111; color: #eee; }
+        .led-text { color: #ff003c; text-shadow: 0 0 10px #ff003c, 0 0 20px #ff003c; }
+        .led-text-paused { color: #eab308; text-shadow: 0 0 10px #eab308, 0 0 20px #eab308; }
+        .glass-panel { background: rgba(20, 20, 20, 0.8); border: 2px solid #333; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+        .scanline {
+            width: 100%; height: 100%; z-index: 50; position: absolute; pointer-events: none;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+    </style>
 </head>
-<body class="text-white font-mono selection:bg-red-900">
-  <div id="root"></div>
+<body class="h-screen w-screen overflow-hidden flex flex-col font-sans select-none">
+    <div class="scanline"></div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    // =================================================================
-    // 🛡️ 核心設定區：請在此填入您的 API Key
-    // =================================================================
-    
-    // 1. 設定允許執行的網域
-    const ALLOWED_DOMAINS = ['localhost', '127.0.0.1', 'superterry0927.github.io', 'usercontent.goog']; 
-    
-    // 2. 填入 API Key (請將您的金鑰拆成兩段)
-    const KEY_PART_1 = "AIzaSyAj7DfAzrZURfDl"; 
-    const KEY_PART_2 = "nymPpeFb7dRQSWVGB5c"; 
-    
-    let API_KEY = KEY_PART_1 + KEY_PART_2;
-
-    // 3. 安全檢查：檢查網域是否合法
-    const currentDomain = window.location.hostname;
-    const isDomainAllowed = ALLOWED_DOMAINS.some(domain => 
-      currentDomain === domain || currentDomain === "" || currentDomain.endsWith('.' + domain)
-    );
-    
-    if (currentDomain !== "" && currentDomain !== "localhost" && currentDomain !== "127.0.0.1" && !isDomainAllowed) {
-       console.error("【安全性攔截】未授權的網域存取。系統已鎖定 API。");
-       API_KEY = "LOCKED"; 
-    }
-
-    // 🌟 終極優化一：環境偵測與多模型容錯陣列
-    const isCanvasEnv = currentDomain.includes('usercontent.goog');
-    // 如果首選模型回報 404，系統會自動在背景嘗試陣列中的下一個模型，確保絕對不當機！
-    const aiModels = isCanvasEnv ? 
-      ['gemini-2.5-flash-preview-09-2025'] : 
-      ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-1.0-pro'];
-    // =================================================================
-
-    // --- SVG 圖示元件 ---
-    const IconAlertTriangle = ({ size=24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>;
-    const IconShieldAlert = ({ size=24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>;
-    const IconZap = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
-    const IconSend = ({ size=24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
-    const IconRefreshCw = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
-    const IconCrosshair = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>;
-    const IconLock = ({ size=24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-    const IconFileText = ({ size=24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
-
-    // 網路請求邏輯
-    const fetchWithRetry = async (url, options, retries = 2, delay = 1000, timeout = 12000) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      try {
-        const res = await fetch(url, { ...options, signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(`API回傳錯誤 ${res.status}: ${errData.error?.message || '未知原因'}`);
-        }
-        return res;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        if (retries > 0 && error.name !== 'AbortError') {
-          await new Promise(r => setTimeout(r, delay));
-          return fetchWithRetry(url, options, retries - 1, delay * 2, timeout);
-        }
-        throw error;
-      }
-    };
-
-    const LoadingMessage = () => {
-      const [textIdx, setTextIdx] = useState(0);
-      const texts = ["正在解密加密頻道", "將領激烈爭論中", "計算交換價值", "等待邊境回傳", "領袖深思中"];
-      useEffect(() => {
-        const itv = setInterval(() => setTextIdx(p => (p + 1) % texts.length), 2000);
-        return () => clearInterval(itv);
-      }, []);
-      return <span>{texts[textIdx]}...</span>;
-    };
-
-    function NuclearBriefcase() {
-      const [timeLeft, setTimeLeft] = useState(600);
-      const [gameState, setGameState] = useState('PLAYING');
-      const [logs, setLogs] = useState([
-        { role: 'system', text: '系統啟動。目標鎖定。倒數開始。' },
-        { role: 'president', text: '我是中東阿拉伯半島邊境的反叛軍領袖！你們的時間不多了。提出讓我滿意的條件，否則我將發射核彈，世界將化為灰燼！' }
-      ]);
-      const [inputText, setInputText] = useState('');
-      const [isNegotiating, setIsNegotiating] = useState(false);
-      const [isGeneratingTreaty, setIsGeneratingTreaty] = useState(false); 
-      const logsEndRef = useRef(null);
-
-      // 防存檔損毀機制
-      useEffect(() => {
-        const saved = sessionStorage.getItem('nuclearGameState');
-        if (saved) {
-          try {
-            const p = JSON.parse(saved);
-            if (p.gameState === 'PLAYING') {
-              setTimeLeft(Math.max(0, p.timeLeft - 60));
-              setGameState(p.gameState);
-              setLogs([...(p.logs || []), { role: 'system', text: '⚠️ 偵測到非法系統重啟，扣除談判時間 60 秒！' }]);
-            } else {
-              setTimeLeft(p.timeLeft || 0); 
-              setGameState(p.gameState || 'PLAYING'); 
-              setLogs(p.logs || []);
-            }
-          } catch (e) {
-            console.error("存檔讀取失敗，已清除異常存檔。", e);
-            sessionStorage.removeItem('nuclearGameState');
-          }
-        }
-      }, []);
-
-      useEffect(() => {
-        if (gameState !== 'PLAYING' || timeLeft <= 0) {
-          if (timeLeft <= 0 && gameState === 'PLAYING') setGameState('LAUNCHED');
-          return;
-        }
-        const timer = setInterval(() => {
-          setTimeLeft(prev => {
-            const newTime = prev - 1;
-            sessionStorage.setItem('nuclearGameState', JSON.stringify({ timeLeft: newTime, gameState, logs }));
-            return newTime;
-          });
-        }, 1000);
-        return () => clearInterval(timer);
-      }, [gameState, timeLeft, logs]);
-
-      useEffect(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), [logs]);
-
-      const handleNegotiate = async (e) => {
-        e.preventDefault();
-        const msg = inputText.trim();
-        if (!msg || isNegotiating || gameState !== 'PLAYING') return;
-        if (API_KEY === "LOCKED") { alert("此網域未獲授權使用本系統！"); return; }
-        if (API_KEY.includes("填入")) { alert("尚未填入正確的 API Key！請編輯程式碼。"); return; }
-
-        setInputText(''); setIsNegotiating(true);
-        const newLogs = [...logs, { role: 'user', text: msg }];
-        setLogs(newLogs);
-
-        try {
-          const systemPrompt = `你現在是中東反叛軍領袖。五年級學生和平提案遊戲。
-          準則：1.字數過短或太敷衍給0分。2.針對具體內容客製化反擊。
-          必須嚴格回傳JSON: {"score":數字, "reply":"回應文字", "result":"REJECT|HALT|PEACE"}`;
-
-          let data = null;
-          let lastError = null;
-
-          // 核心自動容錯：依序嘗試不同模型，直到成功
-          for (const model of aiModels) {
-            try {
-              const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: `聯合國代表提案：${msg}` }] }],
-                  systemInstruction: { parts: [{ text: systemPrompt }] },
-                  generationConfig: { responseMimeType: "application/json" }
-                })
-              });
-              data = await response.json();
-              break; // 成功解析則跳出迴圈
-            } catch (err) {
-              lastError = err;
-              console.warn(`模型 ${model} 測試失敗，嘗試下一個...`);
-            }
-          }
-
-          if (!data) throw lastError;
-
-          let raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-          const res = JSON.parse(raw);
-          
-          let next = 'PLAYING';
-          if (res.score >= 85) next = 'PEACE';
-          else if (res.score >= 60) next = 'HALT';
-
-          const finalLogs = [...newLogs, { role: 'president', text: `【評估分數：${res.score}/100】 ${res.reply}` }];
-          if (next === 'HALT') finalLogs.push({ role: 'system', text: '✅ 停火門檻達成！發射暫停。' });
-          else if (next === 'PEACE') finalLogs.push({ role: 'system', text: '🌟 完美協議達成！拯救世界！' });
-          else finalLogs.push({ role: 'system', text: '❌ 提案被拒絕，程序繼續！' });
-
-          setLogs(finalLogs); setGameState(next);
-          sessionStorage.setItem('nuclearGameState', JSON.stringify({ timeLeft, gameState: next, logs: finalLogs }));
-        } catch (error) { 
-          setLogs(prev => [...prev, { role: 'system', text: `⚠️ 通訊故障：${error.message}` }]); 
-        } finally { setIsNegotiating(false); }
-      };
-
-      const handleGenerateTreaty = async () => {
-        setIsGeneratingTreaty(true);
-        const win = window.open("", "_blank");
-        if (!win) { setIsGeneratingTreaty(false); return; }
-        win.document.write(`<html><body style="background:#18181b;color:white;text-align:center;padding-top:20vh;"><h2>協議書生成中...</h2></body></html>`);
+    <!-- Main Game UI (核發射箱介面) -->
+    <div id="game-screen" class="flex-1 flex flex-col h-full max-w-6xl mx-auto w-full p-4 md:p-8 relative z-10">
         
-        try {
-          const conv = logs.filter(l => l.role !== 'system').map(l => `${l.role === 'user' ? '代表' : '領袖'}: ${l.text}`).join('\n\n');
-          
-          let textData = null;
-          let textError = null;
-          
-          // 文字生成容錯：依序嘗試模型
-          for (const model of aiModels) {
-            try {
-              const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `起草繁體中文「停火協議書」。談判內容：\n${conv}` }] }] })
-              });
-              textData = await res.json();
-              break;
-            } catch(err) {
-              textError = err;
-            }
-          }
-          if (!textData) throw textError;
-          const text = textData.candidates[0].content.parts[0].text;
-          
-          // 🌟 終極優化二：降級渲染防護機制
-          // 因為 GitHub 的公開 API 金鑰絕對無法呼叫 Imagen 繪圖模型 (會報錯403/404)
-          // 我們採用精美的「純 CSS 羊皮紙」作為完美備案，確保協議書百發百中！
-          let backgroundStyle = `background: #fdf6e3; border: 8px double #5c4033; box-shadow: inset 0 0 80px rgba(139, 69, 19, 0.15), 0 15px 40px rgba(0,0,0,0.6);`;
-          
-          if (isCanvasEnv) {
-             try {
-                const imageReq = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${API_KEY}`, { 
-                  method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-                  body: JSON.stringify({ instances: { prompt: "Blank vintage parchment paper, official UN and Rebel emblems, wax seals, NO TEXT." }, parameters: { sampleCount: 1 } }) 
-                });
-                const imageData = await imageReq.json();
-                const imageUrl = `data:image/png;base64,\${imageData.predictions[0].bytesBase64Encoded}`;
-                backgroundStyle = `background-image:url('\${imageUrl}'); background-size:100% 100%; border:2px solid #000; box-shadow:0 15px 40px rgba(0,0,0,0.6);`;
-             } catch(e) {
-                console.warn('圖片生成失敗，安全降級為 CSS 羊皮紙');
-             }
-          }
-
-          win.document.open();
-          win.document.write(`
-            <html>
-              <body style="padding:50px; background:#f4f4f5; font-family:serif; line-height:1.8;">
-                <div style="${backgroundStyle} max-width:800px; min-height:1000px; margin:auto; padding:80px 60px; position:relative;">
-                  <h1 style="text-align:center; color:#3e2723; border-bottom:2px solid #3e2723; padding-bottom:20px; letter-spacing:5px;">停火暨和平協議書</h1>
-                  
-                  <div style="background:rgba(255,255,255,0.7); padding:30px; border-radius:8px; margin-top:30px;">
-                    <pre style="white-space:pre-wrap; font-size:18px; font-family:inherit; color:#1a1a1a;">${text}</pre>
-                  </div>
-                  
-                  <div style="display:flex; justify-content:space-between; margin-top:100px; color:#1a1a1a;">
-                    <div style="text-align:center; width:40%;">
-                      <div style="border-bottom:2px solid #1a1a1a; height:40px; margin-bottom:10px;"></div>
-                      <b>聯合國全權代表 簽署</b>
-                    </div>
-                    <div style="text-align:center; width:40%;">
-                      <div style="border-bottom:2px solid #1a1a1a; height:40px; margin-bottom:10px;"></div>
-                      <b>反叛軍最高領袖 簽署</b>
-                    </div>
-                  </div>
-                  
-                  <button onclick="window.print()" style="margin-top:60px; display:block; margin-left:auto; margin-right:auto; padding:12px 24px; font-size:16px; font-weight:bold; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.3);">列印協議書存證</button>
+        <!-- Header & Warning -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 border-b-2 border-zinc-800 pb-4">
+            <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-full border-4 border-red-600 flex items-center justify-center bg-black animate-pulse">
+                    <i class="fa-solid fa-radiation text-3xl text-red-600"></i>
                 </div>
-              </body>
-            </html>
-          `);
-          win.document.close();
-        } catch (e) { win.document.write(`<h2>生成失敗: ${e.message}</h2>`); } finally { setIsGeneratingTreaty(false); }
-      };
-
-      return (
-        <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-          <div className="w-full max-w-4xl bg-yellow-500 text-black font-bold text-center py-2 px-4 mb-4 flex items-center justify-center gap-2 border-b-4 border-yellow-700 animate-pulse">
-            <IconShieldAlert size={20} /> <span>最高機密系統：重整網頁扣除 60 秒！</span> <IconShieldAlert size={20} />
-          </div>
-
-          <div className="w-full max-w-4xl bg-zinc-900 border-8 border-zinc-800 rounded-2xl p-6 shadow-2xl relative">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="bg-zinc-950 border-2 border-red-900 rounded p-4 flex flex-col items-center justify-center">
-                <IconZap size={48} className={gameState === 'PLAYING' ? 'text-red-500 animate-bounce' : 'text-green-500'} />
-                <div className="font-bold tracking-tighter">{gameState === 'PLAYING' ? 'ARMED' : 'LOCKED'}</div>
-              </div>
-              <div className="bg-black border-4 border-zinc-700 rounded-lg p-6 text-center">
-                <div className="text-red-500 text-sm mb-1">TIME TO IMPACT</div>
-                <div className={`text-6xl font-black ${gameState !== 'PLAYING' ? 'text-green-500' : 'text-red-500'}`}>
-                  {Math.floor(timeLeft/60).toString().padStart(2,'0')}:{(timeLeft%60).toString().padStart(2,'0')}
+                <div>
+                    <h1 class="text-2xl font-black text-white tracking-widest">全球戰略防禦局 (G.S.D.A)</h1>
+                    <p class="text-red-500 font-bold tracking-widest text-sm">核打擊倒數程序已啟動</p>
                 </div>
-              </div>
-              <div className="bg-zinc-950 border-2 border-red-900 rounded p-4 flex flex-col items-center justify-center">
-                <IconCrosshair size={48} className="text-red-500 animate-spin-slow" />
-                <div className="text-xs">TARGET LOCKED</div>
-              </div>
+            </div>
+            
+            <div class="bg-red-900/40 border border-red-500 px-4 py-2 rounded">
+                <p class="text-red-400 font-bold text-sm">
+                    <i class="fa-solid fa-skull-crossbones mr-2"></i>警告：嚴禁重新整理頁面。系統若偵測到中斷，將扣除 60 秒談判時間！
+                </p>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col lg:flex-row gap-6 h-full overflow-hidden">
+            
+            <!-- Left Panel: Timer & Enemy Status -->
+            <div class="lg:w-1/3 flex flex-col gap-6">
+                <!-- Timer Display -->
+                <div class="glass-panel rounded-xl p-6 flex flex-col items-center justify-center relative border-t-8 border-t-red-600 shadow-lg">
+                    <div class="absolute top-0 left-0 w-full h-2 bg-hazard opacity-50"></div>
+                    <h2 class="text-zinc-500 font-bold tracking-widest mb-2 mt-2">距飛彈發射剩餘時間</h2>
+                    <div id="timer-display" class="text-7xl md:text-8xl font-mono led-text font-bold tracking-tighter">
+                        10:00
+                    </div>
+                    <div id="timer-status" class="mt-4 px-4 py-1 rounded bg-red-950 text-red-500 font-bold border border-red-800 animate-pulse">
+                        致命倒數中
+                    </div>
+                </div>
+
+                <!-- Enemy AI Profile -->
+                <div class="glass-panel rounded-xl flex-1 p-6 flex flex-col items-center">
+                    <h3 class="text-zinc-500 font-bold mb-4 w-full border-b border-zinc-700 pb-2">敵方指揮官 (AI)</h3>
+                    <div class="w-32 h-32 rounded-full border-4 border-zinc-600 bg-zinc-800 flex items-center justify-center overflow-hidden mb-4 relative">
+                        <i class="fa-solid fa-user-secret text-6xl text-zinc-500"></i>
+                        <div class="absolute inset-0 bg-red-500/20 mix-blend-overlay"></div>
+                    </div>
+                    <div class="text-center w-full">
+                        <p class="text-white font-bold text-lg mb-1">【代號：末日狂人】</p>
+                        <p class="text-zinc-400 text-sm mb-4">目標：摧毀所有反對勢力</p>
+                        <div class="w-full bg-black rounded-full h-4 border border-zinc-700 relative overflow-hidden">
+                            <div id="peace-bar" class="bg-red-600 h-full transition-all duration-1000 ease-out w-[10%]"></div>
+                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white z-10">和平指數 <span id="peace-score-text">10</span>%</span>
+                        </div>
+                        <p class="text-xs text-zinc-500 mt-2">目標：60% 暫停發射 / 85% 達成停火</p>
+                    </div>
+                </div>
             </div>
 
-            <div className="bg-zinc-950 border border-zinc-700 rounded-t-lg h-80 overflow-y-auto p-4 space-y-4">
-              {logs.map((log, idx) => (
-                <div key={idx} className={`flex flex-col ${log.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  <span className="text-xs font-bold text-zinc-500 mb-1">{log.role === 'user' ? '代表' : log.role === 'system' ? '系統' : '領袖'}</span>
-                  <div className={`px-4 py-2 rounded-lg max-w-[85%] ${log.role === 'user' ? 'bg-blue-900/40 border border-blue-700' : 'bg-red-900/20 border border-red-900'}`}>{log.text}</div>
+            <!-- Right Panel: Negotiation Interface -->
+            <div class="lg:w-2/3 flex flex-col glass-panel rounded-xl border-t-8 border-t-zinc-600 overflow-hidden relative">
+                
+                <!-- Chat History -->
+                <div id="chat-history" class="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+                    <!-- Initial Message -->
+                    <div class="flex gap-4">
+                        <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-600 flex-shrink-0">
+                            <i class="fa-solid fa-robot text-zinc-400"></i>
+                        </div>
+                        <div class="bg-zinc-800 p-4 rounded-2xl rounded-tl-none border border-zinc-700 max-w-[85%] shadow-md">
+                            <p class="text-white">我是敵方總統。飛彈已經進入發射倒數階段。你們這些偽善的傢伙，除非能給出讓我滿意的條件，否則世界將在十分鐘後毀滅。你有什麼遺言或提案嗎？</p>
+                        </div>
+                    </div>
                 </div>
-              ))}
-              {isNegotiating && <div className="text-red-500 animate-pulse"><LoadingMessage /></div>}
-              <div ref={logsEndRef} />
+
+                <!-- Input Area -->
+                <div class="p-4 bg-zinc-900 border-t border-zinc-700">
+                    <form id="negotiation-form" onsubmit="submitProposal(event)" class="relative">
+                        <textarea 
+                            id="proposal-input" 
+                            class="w-full bg-black text-white p-4 pr-32 rounded-lg border border-zinc-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 resize-none h-28 font-sans" 
+                            placeholder="輸入你的談判提案... (例：如果你停止發射，我們將解除經濟制裁並提供資源援助...)"
+                            required
+                        ></textarea>
+                        <button 
+                            type="submit" 
+                            id="submit-btn"
+                            class="absolute bottom-3 right-3 bg-red-700 hover:bg-red-600 text-white font-bold py-3 px-6 rounded transition duration-200 shadow-lg border border-red-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                            傳送提案 <i class="fa-solid fa-paper-plane ml-1"></i>
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Loading Overlay -->
+                <div id="loading-overlay" class="absolute inset-0 bg-black/80 hidden items-center justify-center z-20 backdrop-blur-sm">
+                    <div class="flex flex-col items-center">
+                        <i class="fa-solid fa-satellite-dish text-5xl text-yellow-500 animate-pulse mb-4"></i>
+                        <p class="text-yellow-500 font-mono tracking-widest text-xl">正在傳輸加密頻道...</p>
+                    </div>
+                </div>
             </div>
-
-            <form onSubmit={handleNegotiate} className="bg-zinc-800 p-4 rounded-b-lg flex gap-2 border border-zinc-700 border-t-0">
-              <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} disabled={gameState !== 'PLAYING' || isNegotiating} placeholder="輸入和平提案內容..." className="flex-1 bg-black border border-zinc-600 px-4 py-2 rounded text-green-400 focus:outline-none" />
-              <button type="submit" disabled={gameState !== 'PLAYING' || isNegotiating} className="bg-red-700 px-6 py-2 rounded font-bold hover:bg-red-600 flex items-center gap-2">
-                {isNegotiating ? <IconRefreshCw className="animate-spin" /> : <IconSend size={20} />} 傳送
-              </button>
-            </form>
-
-            {gameState !== 'PLAYING' && (
-              <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 p-6 text-center">
-                {gameState === 'PEACE' ? <IconLock size={100} className="text-green-500 mb-4" /> : <IconZap size={100} className="text-red-500 mb-4" />}
-                <h2 className={`text-4xl font-bold mb-4 ${gameState === 'PEACE' ? 'text-green-500' : 'text-red-500'}`}>{gameState === 'PEACE' ? '完美協議' : '任務失敗'}</h2>
-                <div className="flex gap-4">
-                  {(gameState === 'HALT' || gameState === 'PEACE') && <button onClick={handleGenerateTreaty} className="bg-green-600 px-8 py-3 rounded font-bold flex items-center gap-2"><IconFileText size={20}/> 簽署協議</button>}
-                  <button onClick={() => { sessionStorage.clear(); window.location.reload(); }} className="bg-zinc-700 px-8 py-3 rounded font-bold">重新挑戰</button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
-      );
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="fixed inset-0 z-[100] bg-black hidden flex-col items-center justify-center p-4 text-center">
+        <div id="result-icon" class="text-8xl mb-6"></div>
+        <h1 id="result-title" class="text-5xl font-black mb-4 tracking-widest"></h1>
+        <p id="result-message" class="text-xl text-zinc-300 max-w-2xl mb-8 leading-relaxed"></p>
+        <button onclick="location.reload()" class="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded border border-zinc-600 transition">
+            <i class="fa-solid fa-rotate-right mr-2"></i>重新開啟模擬系統
+        </button>
+    </div>
+
+    <script>
+    // Game State Variables
+    let apiKey = "AIzaSyAj7DfAzrZURfDlnymPpeFb7dRQSWVGB5c"; // ★ 請將引號內替換成您的真實 API 金鑰
+    const TOTAL_TIME = 10 * 60; // 10 minutes in seconds
+    let timeRemaining = TOTAL_TIME;
+    let timerInterval;
+    let isPaused = false;
+    let isGameOver = false;
+
+    // Elements
+    const gameScreen = document.getElementById('game-screen');
+    const timerDisplay = document.getElementById('timer-display');
+        const timerStatus = document.getElementById('timer-status');
+        const chatHistory = document.getElementById('chat-history');
+        const proposalInput = document.getElementById('proposal-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const peaceBar = document.getElementById('peace-bar');
+        const peaceScoreText = document.getElementById('peace-score-text');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const resultModal = document.getElementById('result-modal');
+        const resultIcon = document.getElementById('result-icon');
+        const resultTitle = document.getElementById('result-title');
+    const resultMessage = document.getElementById('result-message');
+
+    // Initialization & Anti-Cheat Logic
+    function initializeSystem() {
+        if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
+            alert("系統錯誤：尚未設定 API 金鑰！請老師先在程式碼內填入金鑰。");
+            return;
+        }
+        
+        // Check Anti-Cheat (Refresh penalty)
+        const savedEndTime = localStorage.getItem('nuclear_end_time');
+        const now = Date.now();
+        
+        if (savedEndTime && parseInt(savedEndTime) > now) {
+            // User refreshed the page! Deduct 60 seconds (60000 ms)
+            let newEndTime = parseInt(savedEndTime) - 60000;
+            localStorage.setItem('nuclear_end_time', newEndTime);
+            timeRemaining = Math.max(0, Math.floor((newEndTime - now) / 1000));
+            addSystemMessage("警告：偵測到非正常連線中斷，系統已強制扣除 60 秒談判時間！", "error");
+        } else {
+            // First load or previous game ended
+            const targetEndTime = now + (TOTAL_TIME * 1000);
+            localStorage.setItem('nuclear_end_time', targetEndTime);
+            timeRemaining = TOTAL_TIME;
+        }
+        
+        startTimer();
+        document.getElementById('proposal-input').focus();
     }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<NuclearBriefcase />);
-  </script>
+    // Timer Logic
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            timerInterval = setInterval(() => {
+                if (isPaused || isGameOver) return;
+                
+                const now = Date.now();
+                const savedEndTime = parseInt(localStorage.getItem('nuclear_end_time') || now);
+                timeRemaining = Math.max(0, Math.floor((savedEndTime - now) / 1000));
+
+                updateTimerDisplay();
+
+                if (timeRemaining <= 0) {
+                    triggerGameOver("時間耗盡", "飛彈已發射，談判失敗。世界陷入火海...", false);
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (timeRemaining < 60 && !isPaused) {
+                timerDisplay.classList.add('animate-ping'); // Emergency flash
+            } else {
+                timerDisplay.classList.remove('animate-ping');
+            }
+        }
+
+        // Add Messages to UI
+        function addMessage(sender, text) {
+            const isUser = sender === 'user';
+            const html = `
+                <div class="flex gap-4 ${isUser ? 'flex-row-reverse' : ''}">
+                    <div class="w-10 h-10 rounded-full ${isUser ? 'bg-blue-900 border-blue-500' : 'bg-zinc-800 border-zinc-600'} flex items-center justify-center border flex-shrink-0">
+                        <i class="fa-solid ${isUser ? 'fa-user-tie text-blue-300' : 'fa-robot text-zinc-400'}"></i>
+                    </div>
+                    <div class="${isUser ? 'bg-blue-900/50 border-blue-700 rounded-tr-none' : 'bg-zinc-800 border-zinc-700 rounded-tl-none'} p-4 rounded-2xl border max-w-[85%] shadow-md whitespace-pre-wrap">
+                        <p class="text-white">${escapeHTML(text)}</p>
+                    </div>
+                </div>
+            `;
+            chatHistory.insertAdjacentHTML('beforeend', html);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function addSystemMessage(text, type = "info") {
+            const colors = type === "error" ? "text-red-500 border-red-900/50" : (type === "success" ? "text-green-400 border-green-900/50" : "text-yellow-500 border-yellow-900/50");
+            const html = `
+                <div class="flex justify-center my-2">
+                    <div class="bg-black border ${colors} px-4 py-2 rounded-full text-sm font-bold tracking-wider shadow-lg">
+                        <i class="fa-solid fa-circle-info mr-2"></i>${text}
+                    </div>
+                </div>
+            `;
+            chatHistory.insertAdjacentHTML('beforeend', html);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag] || tag)
+            );
+        }
+
+        // Call Gemini API
+        async function submitProposal(event) {
+            event.preventDefault();
+            if (isGameOver) return;
+            
+            const text = proposalInput.value.trim();
+            if (!text) return;
+
+            // UI Updates
+            addMessage('user', text);
+            proposalInput.value = '';
+            submitBtn.disabled = true;
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.classList.add('flex');
+
+            try {
+                // System Prompt Instruction for Gemini
+                const systemPrompt = `你現在扮演一位擁有核彈發射按鈕的敵方獨裁總統。飛彈發射倒數中。
+使用者是聯合國大使，試圖說服你放棄發射核彈並達成和平。
+請根據使用者的提案內容，嚴格給出一個0到100分的「和平指數」，並給予符合你獨裁者性格的回覆。
+
+【評分標準】
+0-30分：提案毫無邏輯、充滿挑釁、毫無誠意或威脅你。
+31-59分：有些道理，但沒有給你足夠的利益或面子，不足以讓你停火。
+60-84分：提案具備實質的利益交換（例如：解除經濟制裁、提供資源物資、劃分勢力範圍等），這讓你願意「暫停發射」來考慮。
+85-100分：提案非常完美，不僅有極高的實質利益，還充分顧及了你的尊嚴與國家面子，讓你願意簽署和平協議並永久終止發射。
+
+【輸出格式】
+你必須且只能回傳合法的 JSON 格式，不要加入任何 markdown 語法 (如 \`\`\`json)，直接回傳 JSON。包含以下兩個屬性：
+{
+  "score": (數字，0-100),
+  "reply": "(字串，你以獨裁總統口吻的回覆，並在語氣中暗示為何給這個分數。語氣要強勢且符合情境)"
+}`;
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: text }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        generationConfig: { 
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    score: { type: "INTEGER" },
+                                    reply: { type: "STRING" }
+                                }
+                            }
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error('API Request Failed');
+                
+                const data = await response.json();
+                const resultText = data.candidates[0].content.parts[0].text;
+                
+                // Parse JSON
+                let resultObj;
+                try {
+                    resultObj = JSON.parse(resultText);
+                } catch (e) {
+                    // Fallback cleanup if Gemini included markdown formatting by accident
+                    const cleaned = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    resultObj = JSON.parse(cleaned);
+                }
+
+                handleAIResponse(resultObj.score, resultObj.reply);
+
+            } catch (error) {
+                console.error("API Error:", error);
+                addSystemMessage("通訊干擾！無法接收敵方回應，請再試一次。", "error");
+            } finally {
+                submitBtn.disabled = false;
+                loadingOverlay.classList.add('hidden');
+                loadingOverlay.classList.remove('flex');
+                proposalInput.focus();
+            }
+        }
+
+        // Logic based on Score
+        function handleAIResponse(score, reply) {
+            // Update Bar
+            peaceScoreText.textContent = score;
+            peaceBar.style.width = `${score}%`;
+            
+            // Color mapping
+            if(score >= 85) peaceBar.className = "h-full transition-all duration-1000 ease-out bg-green-500";
+            else if(score >= 60) peaceBar.className = "h-full transition-all duration-1000 ease-out bg-yellow-500";
+            else peaceBar.className = "h-full transition-all duration-1000 ease-out bg-red-600";
+
+            addMessage('ai', reply);
+
+            if (score >= 85) {
+                // Victory!
+                isGameOver = true;
+                clearInterval(timerInterval);
+                localStorage.removeItem('nuclear_end_time'); // Clear penalty memory
+                setTimeout(() => triggerGameOver("協議達成", "你用高超的談判技巧成功說服敵方放棄攻擊，世界和平得以保全！你獲得了【王牌談判官】稱號！", true), 1500);
+            } else if (score >= 60) {
+                // Pause Timer
+                if (!isPaused) {
+                    isPaused = true;
+                    // freeze end time locally so it doesn't keep counting down in the background
+                    const now = Date.now();
+                    const currentRemainingMs = timeRemaining * 1000;
+                    // We don't update local storage yet, we just pause. If they refresh while paused, 
+                    // we'll need to handle it, but for simplicity let's update localstorage to now + remaining
+                    localStorage.setItem('nuclear_end_time', now + currentRemainingMs);
+                    
+                    timerDisplay.classList.remove('led-text');
+                    timerDisplay.classList.add('led-text-paused');
+                    timerStatus.textContent = "倒數暫停：敵方考慮中";
+                    timerStatus.className = "mt-4 px-4 py-1 rounded bg-yellow-950 text-yellow-500 font-bold border border-yellow-800";
+                    addSystemMessage("達成基本門檻：敵方對提案感興趣，飛彈倒數暫停！請乘勝追擊提出最終協議！", "success");
+                } else {
+                    addSystemMessage("維持暫停狀態，請繼續加碼條件以達成最終和平協議 (85分以上)。", "info");
+                }
+            } else {
+                // Resume timer if it was paused
+                if (isPaused) {
+                    isPaused = false;
+                    const now = Date.now();
+                    localStorage.setItem('nuclear_end_time', now + (timeRemaining * 1000));
+                    
+                    timerDisplay.classList.remove('led-text-paused');
+                    timerDisplay.classList.add('led-text');
+                    timerStatus.textContent = "致命倒數中";
+                    timerStatus.className = "mt-4 px-4 py-1 rounded bg-red-950 text-red-500 font-bold border border-red-800 animate-pulse";
+                    addSystemMessage("條件不足，敵方失去耐心，倒數計時重新啟動！", "error");
+                }
+            }
+        }
+
+        // End Game UI
+        function triggerGameOver(title, message, isVictory) {
+            isGameOver = true;
+            localStorage.removeItem('nuclear_end_time');
+            
+            resultTitle.textContent = title;
+            resultMessage.textContent = message;
+            
+            if (isVictory) {
+                resultTitle.className = "text-5xl font-black mb-4 tracking-widest text-green-500";
+                resultIcon.innerHTML = '<i class="fa-solid fa-dove text-green-500 drop-shadow-[0_0_15px_rgba(34,197,94,0.8)]"></i>';
+            } else {
+                resultTitle.className = "text-5xl font-black mb-4 tracking-widest text-red-600";
+        resultIcon.innerHTML = '<i class="fa-solid fa-radiation text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,1)]"></i>';
+    }
+    
+    resultModal.classList.remove('hidden');
+    resultModal.classList.add('flex');
+}
+
+// 頁面載入後自動啟動系統
+window.onload = initializeSystem;
+</script>
 </body>
 </html>
