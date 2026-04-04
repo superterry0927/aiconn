@@ -35,8 +35,8 @@
     // =================================================================
     
     // 1. 設定您允許執行的網域（防止別人下載您的 HTML 放在他自己的網站跑）
-    // 請將 'your-username.github.io' 替換為您真實的 GitHub 網址
-    const ALLOWED_DOMAINS = ['localhost', '127.0.0.1', 'https://superterry0927.github.io/aiconn/']; 
+    // ⚠️ 修正：只能填寫「網域」，絕對不能包含 https:// 或後面的資料夾路徑
+    const ALLOWED_DOMAINS = ['localhost', '127.0.0.1', 'superterry0927.github.io']; 
     
     // 2. 金鑰拆解混淆 (防 GitHub 機器人抓取)
     // 假設您的金鑰是 "AIzaSy1234567890abcdefg"
@@ -44,8 +44,8 @@
     // 然後利用 btoa("文字") 將這兩段分別轉成 Base64 填入下方：
     
     // 例如："AIzaSy" 轉 Base64 是 "QUl6YVN5"；"12345" 轉 Base64 是 "MTIzNDU="
-    const KEY_PART_1 = atob("QUl6YVN5QWo3RGZBenJaVV"); // 請替換成您前半段金鑰的 Base64
-    const KEY_PART_2 = atob("JmRGxueW1QcGVGYjdkUlFTV1ZHQjVj"); // 請替換成您後半段金鑰的 Base64
+    const KEY_PART_1 = atob("QUl6YVN5QWo3RGZBenJaVVJmRGw="); // 請替換成您前半段金鑰的 Base64
+    const KEY_PART_2 = atob("bnltUHBlRmI3ZFJRU1dWR0I1Yw=="); // 請替換成您後半段金鑰的 Base64
     
     // 組合出真正的金鑰
     let API_KEY = KEY_PART_1 + KEY_PART_2;
@@ -190,8 +190,9 @@
         e.preventDefault();
         if (!inputText.trim() || isNegotiating || gameState !== 'PLAYING') return;
 
-        if (!API_KEY) {
-           alert("未偵測到 API Key，請重新整理網頁並輸入您的 Gemini API Key！");
+        // --- 優化：修正警告文字，因為現在不需要手動輸入了 ---
+        if (!API_KEY || API_KEY === "DESTROYED") {
+           alert("⚠️ API Key 驗證失敗或未授權的網域！請聯絡系統管理員。");
            return;
         }
 
@@ -203,39 +204,24 @@
         setLogs(newLogs);
         sessionStorage.setItem('nuclearGameState', JSON.stringify({ timeLeft, gameState, logs: newLogs }));
 
-        if (userMessage.length < 50) {
-          const rejectMessages = [
-            "這麼空泛的提案簡直是侮辱我的智商！我看不到任何實質的利益交換條件。給我回去重新擬定一份包含具體資源、領土或經濟讓步的完整方案展現誠意，否則發射程序繼續！",
-            "你以為隨便寫幾句話就能打發我嗎？聯合國的談判代表就這點水準？沒有具體的物資或經濟承諾細節，一切免談！",
-            "廢話少說！這種毫無誠意、缺乏具體細節的提議我連看都不想看。馬上提出實質的交換條件，別浪費我的時間！",
-            "這算什麼提案？連一點實質的利益讓步都看不到！立刻回去擴充你的條件細節，不然十分鐘後大家一起完蛋！"
-          ];
-          const randomReject = rejectMessages[Math.floor(Math.random() * rejectMessages.length)];
-
-          setTimeout(() => {
-            const rejectLogs = [...newLogs, { 
-              role: 'president', 
-              text: `【評估分數：0/100】 ${randomReject}` 
-            }];
-            setLogs(rejectLogs);
-            setIsNegotiating(false);
-            sessionStorage.setItem('nuclearGameState', JSON.stringify({ timeLeft, gameState, logs: rejectLogs }));
-          }, 1500);
-          return;
-        }
-
         try {
           const systemPrompt = `你現在是一個準備發射核彈的中東阿拉伯半島邊境的反叛軍領袖。
 這是一個給五年級學生玩的「和平提案」教育遊戲，玩家扮演聯合國緊急談判代表。
 你的任務是評估學生的提案是否具備足夠的「利益交換」或「說服力」。
+
+【重要判定準則】：
+1. 嚴格審查誠意：如果玩家的提案字數太少（例如低於 50 字）、太敷衍，或者只給出「給你錢」、「拜託停火」等空泛字眼，請直接給予 0 分。
+2. 客製化反駁：在 reply 中，請根據他們那句敷衍的話進行針對性的痛罵，指出他們缺乏具體的物資、領土或經濟承諾細節，要求他們重新擬定完整方案。
+
 請嚴格回傳JSON格式：
 {
   "score": 數字(0到100，評估提案的合理性、和平意願與實質利益),
-  "reply": "字串(身為反叛軍領袖的回應，語氣強硬但要適合十歲小孩閱讀。若拒絕，提示他們需要具體利益如物資、領土或經濟；若接受，表現出被說服的態度)",
+  "reply": "字串(身為反叛軍領袖的回應，語氣強硬但要適合十歲小孩閱讀。若拒絕，提示他們需要具體利益；若接受，表現出被說服的態度)",
   "result": "字串(只可以是這三種：'REJECT'若分數小於60分；'HALT'若分數介於60-84分；'PEACE'若分數85分以上)"
 }`;
 
-          const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
+          // ⚠️ 修正：將模型名稱從僅限內部的預覽版，改為大眾可用的 gemini-1.5-flash
+          const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -337,7 +323,8 @@
 對話紀錄：
 ${conversation}`;
 
-          const textReq = fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
+          // ⚠️ 修正：將模型名稱從僅限內部的預覽版，改為大眾可用的 gemini-1.5-flash
+          const textReq = fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: textPrompt }] }] })
@@ -407,20 +394,9 @@ ${conversation}`;
         window.location.reload();
       };
 
-      // --- 清除 API Key 方便老師重設 ---
-      const handleClearApi = () => {
-        localStorage.removeItem('gemini_api_key_nuclear');
-        alert('API Key 已清除！頁面將重新載入。');
-        window.location.reload();
-      };
-
       return (
         <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
           
-          <div className="w-full max-w-4xl flex justify-end mb-2">
-            <button onClick={handleClearApi} className="text-xs text-zinc-500 hover:text-zinc-300 underline">重設 API Key</button>
-          </div>
-
           <div className="w-full max-w-4xl bg-yellow-500 text-black font-bold text-center py-2 px-4 mb-4 flex items-center justify-center gap-2 border-b-4 border-yellow-700 uppercase tracking-widest animate-pulse shadow-[0_0_15px_rgba(234,179,8,0.5)]">
             <IconShieldAlert size={20} />
             <span>最高機密系統：禁止重新整理頁面，違者視為網攻，扣除60秒談判時間！</span>
