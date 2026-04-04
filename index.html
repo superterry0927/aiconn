@@ -30,19 +30,14 @@
     // 🛡️ 核心設定區：請在此填入您的 API Key
     // =================================================================
     
-    // 1. 設定允許執行的網域 (預設加入 localhost 與您的 GitHub)
     const ALLOWED_DOMAINS = ['localhost', '127.0.0.1', 'superterry0927.github.io']; 
     
-    // 2. 填入 API Key (請將您的金鑰拆成兩段，直接貼上字串即可)
     // 範例：如果您的金鑰是 AIzaSyA123B456...
-    // KEY_PART_1 = "AIzaSyAFvif2gD9Be8";
-    // KEY_PART_2 = "_Q19UNbiAmIfru-vTQRDk";
-    const KEY_PART_1 = "AIzaSyAFvif2gD9Be8"; 
-    const KEY_PART_2 = "_Q19UNbiAmIfru-vTQRDk"; 
+    const KEY_PART_1 = "AIzaSyAFvif2gD9Be8_"; 
+    const KEY_PART_2 = "Q19UNbiAmIfru-vTQRDk"; 
     
     let API_KEY = KEY_PART_1 + KEY_PART_2;
 
-    // 3. 安全檢查：檢查網域是否合法
     const currentDomain = window.location.hostname;
     const isDomainAllowed = ALLOWED_DOMAINS.some(domain => 
       currentDomain === domain || currentDomain === "" || currentDomain.endsWith('.' + domain)
@@ -53,8 +48,14 @@
        API_KEY = "LOCKED"; 
     }
 
-    // 🌟 終極優化：精簡多模型容錯陣列，只保留最穩定的 1.5 系列
-    const aiModels = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+    // 🌟 終極優化：跨世代多模型容錯陣列 (網羅 2.5, 2.0, 1.5 到基礎 pro)
+    const aiModels = [
+      'gemini-2.5-flash', 
+      'gemini-2.0-flash', 
+      'gemini-1.5-flash', 
+      'gemini-1.5-pro', 
+      'gemini-pro'
+    ];
     // =================================================================
 
     // --- SVG 圖示元件 (無外部依賴) ---
@@ -117,8 +118,8 @@
     };
 
     function NuclearBriefcase() {
-      const [timeLeft, setTimeLeft] = useState(600); // 10 minutes = 600 seconds
-      const [gameState, setGameState] = useState('PLAYING'); // PLAYING, LAUNCHED, HALT, PEACE
+      const [timeLeft, setTimeLeft] = useState(600); 
+      const [gameState, setGameState] = useState('PLAYING'); 
       const [logs, setLogs] = useState([
         { role: 'system', text: '系統啟動... 授權確認。目標鎖定。倒數開始。' },
         { role: 'president', text: '我是中東阿拉伯半島邊境的反叛軍領袖！聯合國，你們的時間不多了。除非你們能提出讓我滿意的條件，否則十分鐘後，我將發射核彈，世界將化為灰燼！' }
@@ -219,7 +220,6 @@
           let data = null;
           let lastError = null;
 
-          // 核心自動容錯：依序嘗試不同模型，直到成功
           for (const model of aiModels) {
             try {
               const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
@@ -243,24 +243,29 @@
                 })
               });
               data = await response.json();
-              break; // 成功解析則跳出迴圈
+              break; 
             } catch (err) {
               lastError = err;
               console.warn(`模型 ${model} 測試失敗，原因: ${err.message}`);
-              // 🌟 智慧判斷：如果錯誤是 403 (無權限/網域被擋) 或 400 (金鑰錯誤)，代表根本連不上 API，切換模型也沒用，立刻中斷並回報真實錯誤！
               if (err.message.includes('403') || err.message.includes('400')) {
-                break;
+                break; // 金鑰或網域錯誤，立刻中斷不浪費時間
               }
             }
           }
 
-          if (!data) throw lastError;
+          if (!data) {
+             // 🌟 智慧判斷翻譯：如果是 404，給予人類易讀的解決方案
+             if (lastError && lastError.message.includes('404')) {
+                throw new Error("404 找不到可用模型！請確認您的 API 金鑰是在 Google AI Studio (aistudio.google.com) 申請，且所在國家地區支援該服務。");
+             } else {
+                throw lastError;
+             }
+          }
           
           let rawText = data.candidates[0].content.parts[0].text;
           rawText = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
           const aiContent = JSON.parse(rawText);
 
-          // 雙重防呆機制：不再信任 AI 的 result，由系統親自用分數判定
           const finalScore = typeof aiContent.score === 'number' ? aiContent.score : 0;
           const finalReply = aiContent.reply || "（系統攔截到模糊訊號，對方似乎在思考，但發射程序依然無法停止！）";
           
@@ -290,7 +295,7 @@
           sessionStorage.setItem('nuclearGameState', JSON.stringify({ timeLeft, gameState: nextState, logs: finalLogs }));
 
         } catch (error) {
-          setLogs(prev => [...prev, { role: 'system', text: `⚠️ 通訊干擾！請確認 API 金鑰與 Google Cloud 網域設定。詳細錯誤：${error.message}` }]);
+          setLogs(prev => [...prev, { role: 'system', text: `⚠️ 通訊干擾！${error.message}` }]);
         } finally {
           setIsNegotiating(false);
         }
@@ -337,7 +342,6 @@ ${conversation}`;
           let textData = null;
           let textError = null;
           
-          // 文字生成容錯：依序嘗試模型
           for (const model of aiModels) {
             try {
               const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
@@ -352,11 +356,18 @@ ${conversation}`;
               if (err.message.includes('403') || err.message.includes('400')) break;
             }
           }
-          if (!textData) throw textError;
+          
+          if (!textData) {
+             if (textError && textError.message.includes('404')) {
+                throw new Error("404 找不到可用模型！請確認您的 API 金鑰是在 Google AI Studio 申請。");
+             } else {
+                throw textError;
+             }
+          }
           
           const treatyContent = textData.candidates[0].content.parts[0].text.trim();
           
-          // 降級渲染防護機制：直接使用純 CSS 繪製羊皮紙，保證在 GitHub (無畫圖模型權限) 下依然能印出漂亮協議書
+          // CSS 羊皮紙降級渲染
           const backgroundStyle = `background: #fdf6e3; border: 8px double #5c4033; box-shadow: inset 0 0 80px rgba(139, 69, 19, 0.15), 0 15px 40px rgba(0,0,0,0.6);`;
           
           newWin.document.open();
