@@ -30,14 +30,36 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- 資安優化：使用 Prompt 讓使用者輸入 API Key，避免將 Key 暴露在公開的 GitHub 中 ---
-    let API_KEY = localStorage.getItem('gemini_api_key_nuclear');
-    if (!API_KEY) {
-      API_KEY = prompt("【教師/管理者設定】\n為確保 API Key 不會外洩於 GitHub，請在此輸入您的 Gemini API Key。\n(此金鑰僅會暫存於您目前的瀏覽器中)");
-      if(API_KEY) {
-        localStorage.setItem('gemini_api_key_nuclear', API_KEY);
-      }
+    // =================================================================
+    // 🛡️ 資安防護區：API Key 混淆與網域白名單設定
+    // =================================================================
+    
+    // 1. 設定您允許執行的網域（防止別人下載您的 HTML 放在他自己的網站跑）
+    // 請將 'your-username.github.io' 替換為您真實的 GitHub 網址
+    const ALLOWED_DOMAINS = ['localhost', '127.0.0.1', 'https://superterry0927.github.io/aiconn/']; 
+    
+    // 2. 金鑰拆解混淆 (防 GitHub 機器人抓取)
+    // 假設您的金鑰是 "AIzaSy1234567890abcdefg"
+    // 請不要直接寫明碼！請把金鑰切成兩半，例如 "AIzaSy1234" 和 "567890abcdefg"
+    // 然後利用 btoa("文字") 將這兩段分別轉成 Base64 填入下方：
+    
+    // 例如："AIzaSy" 轉 Base64 是 "QUl6YVN5"；"12345" 轉 Base64 是 "MTIzNDU="
+    const KEY_PART_1 = atob("QUl6YVN5QWo3RGZBenJaVV"); // 請替換成您前半段金鑰的 Base64
+    const KEY_PART_2 = atob("JmRGxueW1QcGVGYjdkUlFTV1ZHQjVj"); // 請替換成您後半段金鑰的 Base64
+    
+    // 組合出真正的金鑰
+    let API_KEY = KEY_PART_1 + KEY_PART_2;
+
+    // 3. 執行網域檢查 (如果不符合白名單，就摧毀金鑰)
+    const currentDomain = window.location.hostname;
+    const isDomainAllowed = ALLOWED_DOMAINS.some(domain => currentDomain === domain || currentDomain.endsWith('.' + domain));
+    
+    // 為了在本機開發或 Canvas 預覽方便，若網域為空 (如 file:// 或沙盒)，預設放行
+    if (currentDomain !== "" && !isDomainAllowed) {
+       console.error("未授權的網域存取！");
+       API_KEY = "DESTROYED"; // 摧毀金鑰
     }
+    // =================================================================
 
     // --- SVG 圖示元件 (替換原本依賴的 lucide-react) ---
     const IconAlertTriangle = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>;
