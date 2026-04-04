@@ -28,7 +28,7 @@
     // 🛡️ 核心設定區：請在此填入您的 API Key
     // =================================================================
     
-    // 1. 設定允許執行的網域 (已自動加入 usercontent.goog 以便在此預覽)
+    // 1. 設定允許執行的網域
     const ALLOWED_DOMAINS = ['localhost', '127.0.0.1', 'superterry0927.github.io', 'usercontent.goog']; 
     
     // 2. 填入 API Key (請將您的金鑰拆成兩段)
@@ -48,9 +48,12 @@
        API_KEY = "LOCKED"; 
     }
 
-    // 🌟 核心優化：環境自動偵測器 (解決 Canvas 404 與 GitHub 部署的衝突)
+    // 🌟 終極優化一：環境偵測與多模型容錯陣列
     const isCanvasEnv = currentDomain.includes('usercontent.goog');
-    const aiModelName = isCanvasEnv ? 'gemini-2.5-flash-preview-09-2025' : 'gemini-1.5-flash';
+    // 如果首選模型回報 404，系統會自動在背景嘗試陣列中的下一個模型，確保絕對不當機！
+    const aiModels = isCanvasEnv ? 
+      ['gemini-2.5-flash-preview-09-2025'] : 
+      ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-1.0-pro'];
     // =================================================================
 
     // --- SVG 圖示元件 ---
@@ -162,18 +165,31 @@
           準則：1.字數過短或太敷衍給0分。2.針對具體內容客製化反擊。
           必須嚴格回傳JSON: {"score":數字, "reply":"回應文字", "result":"REJECT|HALT|PEACE"}`;
 
-          // 使用動態選擇的 AI 模型 (aiModelName)
-          const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${aiModelName}:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: `聯合國代表提案：${msg}` }] }],
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              generationConfig: { responseMimeType: "application/json" }
-            })
-          });
+          let data = null;
+          let lastError = null;
 
-          const data = await response.json();
+          // 核心自動容錯：依序嘗試不同模型，直到成功
+          for (const model of aiModels) {
+            try {
+              const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: `聯合國代表提案：${msg}` }] }],
+                  systemInstruction: { parts: [{ text: systemPrompt }] },
+                  generationConfig: { responseMimeType: "application/json" }
+                })
+              });
+              data = await response.json();
+              break; // 成功解析則跳出迴圈
+            } catch (err) {
+              lastError = err;
+              console.warn(`模型 ${model} 測試失敗，嘗試下一個...`);
+            }
+          }
+
+          if (!data) throw lastError;
+
           let raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
           const res = JSON.parse(raw);
           
@@ -198,29 +214,76 @@
         const win = window.open("", "_blank");
         if (!win) { setIsGeneratingTreaty(false); return; }
         win.document.write(`<html><body style="background:#18181b;color:white;text-align:center;padding-top:20vh;"><h2>協議書生成中...</h2></body></html>`);
+        
         try {
           const conv = logs.filter(l => l.role !== 'system').map(l => `${l.role === 'user' ? '代表' : '領袖'}: ${l.text}`).join('\n\n');
           
-          // 使用動態選擇的 AI 模型 (aiModelName)
-          const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${aiModelName}:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: `起草繁體中文「停火協議書」。談判內容：\n${conv}` }] }] })
-          });
+          let textData = null;
+          let textError = null;
           
-          const text = (await res.json()).candidates[0].content.parts[0].text;
+          // 文字生成容錯：依序嘗試模型
+          for (const model of aiModels) {
+            try {
+              const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: `起草繁體中文「停火協議書」。談判內容：\n${conv}` }] }] })
+              });
+              textData = await res.json();
+              break;
+            } catch(err) {
+              textError = err;
+            }
+          }
+          if (!textData) throw textError;
+          const text = textData.candidates[0].content.parts[0].text;
           
-          // 圖片生成模型固定為 imagen
-          const imageReq = fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${API_KEY}`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ instances: { prompt: "Blank vintage parchment paper, official UN and Rebel emblems, wax seals, NO TEXT." }, parameters: { sampleCount: 1 } }) 
-          });
-          const imageData = await (await imageReq).json();
-          const imageUrl = `data:image/png;base64,${imageData.predictions[0].bytesBase64Encoded}`;
+          // 🌟 終極優化二：降級渲染防護機制
+          // 因為 GitHub 的公開 API 金鑰絕對無法呼叫 Imagen 繪圖模型 (會報錯403/404)
+          // 我們採用精美的「純 CSS 羊皮紙」作為完美備案，確保協議書百發百中！
+          let backgroundStyle = `background: #fdf6e3; border: 8px double #5c4033; box-shadow: inset 0 0 80px rgba(139, 69, 19, 0.15), 0 15px 40px rgba(0,0,0,0.6);`;
+          
+          if (isCanvasEnv) {
+             try {
+                const imageReq = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${API_KEY}`, { 
+                  method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+                  body: JSON.stringify({ instances: { prompt: "Blank vintage parchment paper, official UN and Rebel emblems, wax seals, NO TEXT." }, parameters: { sampleCount: 1 } }) 
+                });
+                const imageData = await imageReq.json();
+                const imageUrl = `data:image/png;base64,\${imageData.predictions[0].bytesBase64Encoded}`;
+                backgroundStyle = `background-image:url('\${imageUrl}'); background-size:100% 100%; border:2px solid #000; box-shadow:0 15px 40px rgba(0,0,0,0.6);`;
+             } catch(e) {
+                console.warn('圖片生成失敗，安全降級為 CSS 羊皮紙');
+             }
+          }
 
           win.document.open();
-          win.document.write(`<html><body style="padding:50px;background:#f4f4f5;font-family:serif;line-height:1.8;"><div style="background-image:url('${imageUrl}'); background-size:100% 100%; max-width:800px; min-height:1000px; margin:auto; border:2px solid #000; padding:80px 60px; box-shadow:0 10px 30px rgba(0,0,0,0.5);"><h1 style="text-align:center;">停火暨和平協議書</h1><div style="background:rgba(255,255,255,0.8); padding:20px; border-radius:8px;"><pre style="white-space:pre-wrap;font-size:18px;font-family:inherit;">${text}</pre></div><div style="display:flex;justify-content:space-between;margin-top:80px;"><div>代表簽名：__________</div><div>領袖簽名：__________</div></div><button onclick="window.print()" style="margin-top:50px;display:block;margin-left:auto;margin-right:auto;">列印存證</button></div></body></html>`);
+          win.document.write(`
+            <html>
+              <body style="padding:50px; background:#f4f4f5; font-family:serif; line-height:1.8;">
+                <div style="${backgroundStyle} max-width:800px; min-height:1000px; margin:auto; padding:80px 60px; position:relative;">
+                  <h1 style="text-align:center; color:#3e2723; border-bottom:2px solid #3e2723; padding-bottom:20px; letter-spacing:5px;">停火暨和平協議書</h1>
+                  
+                  <div style="background:rgba(255,255,255,0.7); padding:30px; border-radius:8px; margin-top:30px;">
+                    <pre style="white-space:pre-wrap; font-size:18px; font-family:inherit; color:#1a1a1a;">${text}</pre>
+                  </div>
+                  
+                  <div style="display:flex; justify-content:space-between; margin-top:100px; color:#1a1a1a;">
+                    <div style="text-align:center; width:40%;">
+                      <div style="border-bottom:2px solid #1a1a1a; height:40px; margin-bottom:10px;"></div>
+                      <b>聯合國全權代表 簽署</b>
+                    </div>
+                    <div style="text-align:center; width:40%;">
+                      <div style="border-bottom:2px solid #1a1a1a; height:40px; margin-bottom:10px;"></div>
+                      <b>反叛軍最高領袖 簽署</b>
+                    </div>
+                  </div>
+                  
+                  <button onclick="window.print()" style="margin-top:60px; display:block; margin-left:auto; margin-right:auto; padding:12px 24px; font-size:16px; font-weight:bold; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.3);">列印協議書存證</button>
+                </div>
+              </body>
+            </html>
+          `);
           win.document.close();
         } catch (e) { win.document.write(`<h2>生成失敗: ${e.message}</h2>`); } finally { setIsGeneratingTreaty(false); }
       };
