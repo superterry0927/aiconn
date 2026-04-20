@@ -27,12 +27,12 @@
     const { useState, useEffect, useRef } = React;
 
     // =================================================================
-    // 🛡️ 核心設定區：請在此填入您的 API Key
+    // 🛡️ 核心設定區：API Key 與網域保護
     // =================================================================
     
     const ALLOWED_DOMAINS = ['localhost', '127.0.0.1', 'superterry0927.github.io']; 
     
-    // 範例：如果您的金鑰是 AIzaSyA123B456...
+    // 已植入您專屬的金鑰
     const KEY_PART_1 = "AIzaSyAFvif2gD9Be8_"; 
     const KEY_PART_2 = "Q19UNbiAmIfru-vTQRDk"; 
     
@@ -48,17 +48,16 @@
        API_KEY = "LOCKED"; 
     }
 
-    // 🌟 終極優化：跨世代多模型容錯陣列 (網羅 2.5, 2.0, 1.5 到基礎 pro)
+    // 多模型容錯陣列 (確保文字生成絕對穩定)
     const aiModels = [
       'gemini-2.5-flash', 
       'gemini-2.0-flash', 
       'gemini-1.5-flash', 
-      'gemini-1.5-pro', 
-      'gemini-pro'
+      'gemini-1.5-pro'
     ];
     // =================================================================
 
-    // --- SVG 圖示元件 (無外部依賴) ---
+    // --- SVG 圖示元件 ---
     const IconAlertTriangle = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>;
     const IconShieldAlert = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>;
     const IconZap = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
@@ -66,7 +65,7 @@
     const IconRefreshCw = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
     const IconCrosshair = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>;
     const IconLock = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-    const IconFileText = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
+    const IconDownload = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
 
     // --- 網路請求邏輯 ---
     const fetchWithRetry = async (url, options, retries = 2, delay = 1000, timeout = 12000) => {
@@ -93,25 +92,12 @@
     const LoadingMessage = () => {
       const [textIdx, setTextIdx] = useState(0);
       const [dots, setDots] = useState('');
-      const texts = [
-        "正在解密聯合國加密頻道",
-        "反叛軍將領正在激烈爭論",
-        "正在計算物資交換價值",
-        "正在等待邊境通訊回傳",
-        "領袖正在思考最後決定"
-      ];
+      const texts = ["正在解密聯合國加密頻道", "反叛軍將領正在激烈爭論", "正在計算物資交換價值", "正在等待邊境通訊回傳", "領袖正在思考最後決定"];
 
       useEffect(() => {
-        const dotInterval = setInterval(() => {
-          setDots(prev => prev.length >= 3 ? '' : prev + '.');
-        }, 500);
-        const textInterval = setInterval(() => {
-          setTextIdx(prev => (prev + 1) % texts.length);
-        }, 2000); 
-        return () => {
-          clearInterval(dotInterval);
-          clearInterval(textInterval);
-        };
+        const dotInterval = setInterval(() => setDots(prev => prev.length >= 3 ? '' : prev + '.'), 500);
+        const textInterval = setInterval(() => setTextIdx(prev => (prev + 1) % texts.length), 2000); 
+        return () => { clearInterval(dotInterval); clearInterval(textInterval); };
       }, []);
 
       return <span>{texts[textIdx]}{dots}</span>;
@@ -129,41 +115,31 @@
       const [isGeneratingTreaty, setIsGeneratingTreaty] = useState(false); 
       const logsEndRef = useRef(null);
 
-      // 防重整與存檔損毀保護機制
       useEffect(() => {
         const savedData = sessionStorage.getItem('nuclearGameState');
         if (savedData) {
           try {
             const parsed = JSON.parse(savedData);
             if (parsed.gameState === 'PLAYING') {
-              const newTime = Math.max(0, parsed.timeLeft - 60);
-              setTimeLeft(newTime);
+              setTimeLeft(Math.max(0, parsed.timeLeft - 60));
               setGameState(parsed.gameState);
-              setLogs([
-                ...(parsed.logs || []),
-                { role: 'system', text: '⚠️ 嚴重警告：偵測到非法系統重啟（網頁重新整理），扣除談判時間 60 秒！' }
-              ]);
+              setLogs([...(parsed.logs || []), { role: 'system', text: '⚠️ 嚴重警告：偵測到非法系統重啟（網頁重新整理），扣除談判時間 60 秒！' }]);
             } else {
               setTimeLeft(parsed.timeLeft || 0);
               setGameState(parsed.gameState || 'PLAYING');
               setLogs(parsed.logs || []);
             }
           } catch (e) {
-            console.error("存檔讀取失敗，已清除異常存檔。", e);
             sessionStorage.removeItem('nuclearGameState');
           }
-        } else {
-          sessionStorage.setItem('nuclearGameState', JSON.stringify({ timeLeft: 600, gameState: 'PLAYING', logs }));
         }
       }, []);
 
-      // 計時器邏輯
       useEffect(() => {
         if (gameState !== 'PLAYING' || timeLeft <= 0) {
           if (timeLeft <= 0 && gameState === 'PLAYING') setGameState('LAUNCHED');
           return;
         }
-        
         const timer = setInterval(() => {
           setTimeLeft(prev => {
             const newTime = prev - 1;
@@ -171,14 +147,10 @@
             return newTime;
           });
         }, 1000);
-        
         return () => clearInterval(timer);
       }, [gameState, timeLeft, logs]);
 
-      // 自動捲動到最新對話
-      useEffect(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, [logs]);
+      useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
       const formatTime = (seconds) => {
         const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -192,7 +164,6 @@
         if (!msg || isNegotiating || gameState !== 'PLAYING') return;
 
         if (API_KEY === "LOCKED") { alert("此網域未獲授權使用本系統！"); return; }
-        if (API_KEY.includes("填入")) { alert("尚未填入正確的 API Key！請先編輯 HTML 檔案修改金鑰。"); return; }
 
         setInputText('');
         setIsNegotiating(true);
@@ -212,9 +183,9 @@
 
 請嚴格回傳JSON格式：
 {
-  "score": 數字(0到100，評估提案的合理性、和平意願與實質利益),
-  "reply": "字串(身為反叛軍領袖的回應，語氣強硬但要適合十歲小孩閱讀。若拒絕，提示他們需要具體利益如物資、領土或經濟；若接受，表現出被說服的態度)",
-  "result": "字串(只可以是這三種：'REJECT'若分數小於60分；'HALT'若分數介於60-84分；'PEACE'若分數85分以上)"
+  "score": 數字(0到100),
+  "reply": "字串(反叛軍領袖的回應，語氣強硬但要適合十歲小孩閱讀。)",
+  "result": "字串('REJECT'若分數小於60分；'HALT'若介於60-84分；'PEACE'若85分以上)"
 }`;
 
           let data = null;
@@ -228,39 +199,18 @@
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: `聯合國代表的提案：${msg}` }] }],
                   systemInstruction: { parts: [{ text: systemPrompt }] },
-                  generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                       type: "OBJECT",
-                       properties: {
-                         score: { type: "INTEGER" },
-                         reply: { type: "STRING" },
-                         result: { type: "STRING" }
-                       },
-                       required: ["score", "reply", "result"]
-                    }
-                  }
+                  generationConfig: { responseMimeType: "application/json" }
                 })
               });
               data = await response.json();
               break; 
             } catch (err) {
               lastError = err;
-              console.warn(`模型 ${model} 測試失敗，原因: ${err.message}`);
-              if (err.message.includes('403') || err.message.includes('400')) {
-                break; // 金鑰或網域錯誤，立刻中斷不浪費時間
-              }
+              if (err.message.includes('403') || err.message.includes('400')) break; 
             }
           }
 
-          if (!data) {
-             // 🌟 智慧判斷翻譯：如果是 404，給予人類易讀的解決方案
-             if (lastError && lastError.message.includes('404')) {
-                throw new Error("404 找不到可用模型！請確認您的 API 金鑰是在 Google AI Studio (aistudio.google.com) 申請，且所在國家地區支援該服務。");
-             } else {
-                throw lastError;
-             }
-          }
+          if (!data) throw lastError || new Error("無法連接至 AI 模型");
           
           let rawText = data.candidates[0].content.parts[0].text;
           rawText = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -273,22 +223,16 @@
           let resultAction = 'REJECT';
 
           if (finalScore >= 85) {
-            resultAction = 'PEACE';
-            nextState = 'PEACE';
+            resultAction = 'PEACE'; nextState = 'PEACE';
           } else if (finalScore >= 60) {
-            resultAction = 'HALT';
-            nextState = 'HALT';
+            resultAction = 'HALT'; nextState = 'HALT';
           }
 
           let finalLogs = [...newLogs, { role: 'president', text: `【評估分數：${finalScore}/100】 ${finalReply}` }];
           
-          if (resultAction === 'HALT') {
-            finalLogs.push({ role: 'system', text: '✅ 達到停火門檻！發射程序已暫停。但危機尚未完全解除。' });
-          } else if (resultAction === 'PEACE') {
-            finalLogs.push({ role: 'system', text: '🌟 達成完美協議！核武系統已永久鎖定，成功拯救世界！' });
-          } else {
-            finalLogs.push({ role: 'system', text: '❌ 提案被拒絕，發射程序繼續！請提出更好的條件！' });
-          }
+          if (resultAction === 'HALT') finalLogs.push({ role: 'system', text: '✅ 達到停火門檻！發射程序已暫停。但危機尚未完全解除。' });
+          else if (resultAction === 'PEACE') finalLogs.push({ role: 'system', text: '🌟 達成完美協議！核武系統已永久鎖定，成功拯救世界！' });
+          else finalLogs.push({ role: 'system', text: '❌ 提案被拒絕，發射程序繼續！請提出更好的條件！' });
 
           setLogs(finalLogs);
           setGameState(nextState);
@@ -301,6 +245,7 @@
         }
       };
 
+      // 🌟 堅不可摧的影像合成魔法：結合 API 畫圖與 Canvas 程式碼備援
       const handleGenerateTreaty = async () => {
         setIsGeneratingTreaty(true);
         
@@ -316,103 +261,179 @@
             <head><title>生成協議中...</title></head>
             <body style="margin:0; background:#27272a; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:sans-serif; color:white; text-align:center;">
                <h2 style="animation: pulse 2s infinite;">聯合國文書處理中心連線中...</h2>
-               <p style="color:#a1a1aa;">正在統整雙方談判條件，並由系統擬定正式公文，請稍候（約需 10-15 秒）</p>
+               <p style="color:#a1a1aa;">正在將文字與簽署封印合成至實體卷軸，約需 10-15 秒，請稍候</p>
                <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }</style>
             </body>
           </html>
         `);
 
         try {
-          const conversation = logs.filter(l => l.role !== 'system')
-                                   .map(l => `${l.role === 'user' ? '聯合國代表' : '反叛軍領袖'}: ${l.text}`)
-                                   .join('\n\n');
-
-          const textPrompt = `你是一位聯合國專業的外交公文起草人。請根據以下談判對話紀錄，草擬一份正式的「停火暨和平協議書」。
-要求：
-1. 語氣莊重、嚴肅且正式。
-2. 開頭宣告雙方即刻達成全面停火。
-3. 清楚列出雙方同意的「具體利益交換條件」（根據對話內容摘要）。
-4. 字數約 150-200 字即可。
-5. 絕對不可使用 Markdown 符號（如 ** 或 #），直接輸出純文字段落。
-6. 必須完全使用繁體中文（正體中文）。
-
-對話紀錄：
-${conversation}`;
+          // 1. 產生協議文字
+          const conversation = logs.filter(l => l.role !== 'system').map(l => `${l.role === 'user' ? '聯合國代表' : '反叛軍領袖'}: ${l.text}`).join('\n\n');
+          const textPrompt = `草擬一份正式的「停火暨和平協議書」。要求：
+1. 語氣莊重正式。宣告雙方達成全面停火。
+2. 清楚列出雙方同意的「具體利益交換條件」。
+3. 字數約 150-200 字即可。
+4. 絕對不可使用 Markdown 符號（如 ** 或 #），直接輸出純文字段落。繁體中文。
+對話紀錄：\n${conversation}`;
 
           let textData = null;
-          let textError = null;
-          
           for (const model of aiModels) {
             try {
               const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: textPrompt }] }] })
               });
               textData = await res.json();
               break;
-            } catch(err) {
-              textError = err;
-              if (err.message.includes('403') || err.message.includes('400')) break;
-            }
+            } catch(err) { /* 忽略錯誤，繼續嘗試 */ }
           }
           
-          if (!textData) {
-             if (textError && textError.message.includes('404')) {
-                throw new Error("404 找不到可用模型！請確認您的 API 金鑰是在 Google AI Studio 申請。");
-             } else {
-                throw textError;
-             }
-          }
-          
+          if (!textData) throw new Error("無法取得 AI 生成之文字內容");
           const treatyContent = textData.candidates[0].content.parts[0].text.trim();
-          
-          // CSS 羊皮紙降級渲染
-          const backgroundStyle = `background: #fdf6e3; border: 8px double #5c4033; box-shadow: inset 0 0 80px rgba(139, 69, 19, 0.15), 0 15px 40px rgba(0,0,0,0.6);`;
-          
-          newWin.document.open();
-          newWin.document.write(`
-            <html>
-              <head><title>聯合國與反叛軍 - 和平協議</title></head>
-              <body style="margin:0; background:#27272a; display:flex; flex-direction:column; align-items:center; min-height:100vh; font-family:'Times New Roman', PMingLiU, '標楷體', serif; color:#1a1a1a; padding: 40px 20px;">
-                <p style="color:#a1a1aa; font-family:sans-serif; margin-bottom: 20px;">列印此協議並親筆簽署，完成最終和平程序。</p>
-                
-                <div style="position: relative; width: 100%; max-width: 800px; min-height: 900px; padding: 80px 60px; box-sizing: border-box; ${backgroundStyle}">
-                  
-                  <h1 style="text-align: center; font-size: 32px; font-weight: bold; margin-top: 40px; margin-bottom: 30px; border-bottom: 2px solid rgba(0,0,0,0.5); padding-bottom: 15px; letter-spacing: 5px;">
-                    停火暨和平協議書
-                  </h1>
-                  
-                  <div style="font-size: 18px; line-height: 2; white-space: pre-wrap; text-align: justify; font-weight: 600; background: rgba(255,255,255,0.65); padding: 30px; border-radius: 4px;">${treatyContent}</div>
-                  
-                  <div style="display: flex; justify-content: space-between; margin-top: 100px; padding: 0 20px;">
-                    <div style="text-align: center; width: 40%;">
-                      <div style="border-bottom: 2px solid #1a1a1a; height: 50px; margin-bottom: 10px;"></div>
-                      <div style="font-weight: bold; font-size: 16px;">聯合國全權代表 簽署</div>
-                    </div>
-                    <div style="text-align: center; width: 40%;">
-                      <div style="border-bottom: 2px solid #1a1a1a; height: 50px; margin-bottom: 10px;"></div>
-                      <div style="font-weight: bold; font-size: 16px;">反叛軍最高領袖 簽署</div>
-                    </div>
+
+          // 2. 準備 Canvas 進行終極渲染
+          const canvas = document.createElement('canvas');
+          canvas.width = 1024;
+          canvas.height = 1024;
+          const ctx = canvas.getContext('2d');
+
+          // 核心繪圖函數 (把文字寫上去並輸出畫面)
+          const renderTextAndOutput = () => {
+            // 畫一塊半透明白色底色，確保文字清晰
+            ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+            ctx.fillRect(80, 80, 864, 864);
+
+            // 繪製標題
+            ctx.fillStyle = "#1a1a1a";
+            ctx.font = "bold 48px 'Times New Roman', PMingLiU, '標楷體', serif";
+            ctx.textAlign = "center";
+            ctx.fillText("停火暨和平協議書", 512, 160);
+
+            // 標題底線
+            ctx.beginPath(); ctx.moveTo(312, 180); ctx.lineTo(712, 180);
+            ctx.lineWidth = 3; ctx.stroke();
+
+            // 中文自動換行繪製內文
+            ctx.font = "bold 24px 'Times New Roman', PMingLiU, '標楷體', serif";
+            ctx.textAlign = "left";
+            const wrapText = (context, text, x, y, maxWidth, lineHeight) => {
+              const paragraphs = text.split('\n');
+              for (let i = 0; i < paragraphs.length; i++) {
+                let characters = paragraphs[i].split('');
+                let line = '';
+                for (let n = 0; n < characters.length; n++) {
+                  let testLine = line + characters[n];
+                  let testWidth = context.measureText(testLine).width;
+                  if (testWidth > maxWidth && n > 0) {
+                    context.fillText(line, x, y);
+                    line = characters[n]; y += lineHeight;
+                  } else { line = testLine; }
+                }
+                context.fillText(line, x, y); y += lineHeight;
+              }
+            };
+            wrapText(ctx, treatyContent, 120, 240, 784, 40);
+
+            // 繪製簽名欄
+            ctx.font = "bold 24px 'Times New Roman', PMingLiU, '標楷體', serif";
+            ctx.fillText("聯合國全權代表 簽署：", 150, 850);
+            ctx.beginPath(); ctx.moveTo(150, 880); ctx.lineTo(400, 880); ctx.stroke();
+            ctx.fillText("反叛軍最高領袖 簽署：", 580, 850);
+            ctx.beginPath(); ctx.moveTo(580, 880); ctx.lineTo(830, 880); ctx.stroke();
+
+            // 輸出最終圖片
+            const finalImageBase64 = canvas.toDataURL("image/png");
+
+            newWin.document.open();
+            newWin.document.write(`
+              <html>
+                <head>
+                  <title>聯合國與反叛軍 - 和平協議</title>
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <style>
+                    body { background: #27272a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+                    .tip { color: #a1a1aa; margin-bottom: 20px; text-align: center; line-height: 1.5; }
+                    .treaty-img { max-width: 100%; max-height: 80vh; width: auto; height: auto; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); object-fit: contain; }
+                    .btn-container { margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+                    .btn { padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 6px; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+                    .btn-download { background: #10b981; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; }
+                    .btn-download:hover { transform: scale(1.05); }
+                    .btn-close { background: #3f3f46; color: white; }
+                  </style>
+                </head>
+                <body>
+                  <div class="tip">
+                    💡 <b>保存提示</b><br/>
+                    請點擊下方按鈕下載檔案。<br/>
+                    (若您使用 iPad 或手機，亦可直接 <b>長按下方圖片</b> 選擇「儲存影像」)
                   </div>
+                  <img src="${finalImageBase64}" class="treaty-img" alt="和平協議書" />
+                  <div class="btn-container">
+                    <a href="${finalImageBase64}" download="聯合國和平協議書.png" class="btn btn-download">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      下載圖片
+                    </a>
+                    <button onclick="window.close()" class="btn btn-close">關閉視窗</button>
+                  </div>
+                </body>
+              </html>
+            `);
+            newWin.document.close();
+            setIsGeneratingTreaty(false);
+          };
 
-                </div>
+          // 3. 嘗試呼叫 Imagen 生成超華麗底圖
+          let base64Background = null;
+          try {
+            const imagePrompt = "A blank formal vintage parchment paper template, ornate elegant borders, NO TEXT.";
+            const imageReq = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${API_KEY}`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ instances: { prompt: imagePrompt }, parameters: { sampleCount: 1 } })
+            });
+            const imageData = await imageReq.json();
+            if (imageData.predictions) {
+               base64Background = `data:image/png;base64,${imageData.predictions[0].bytesBase64Encoded}`;
+            }
+          } catch(e) {
+            console.warn("Imagen 無法使用 (可能由於 API 金鑰權限)，啟動 Canvas 降級繪圖。");
+          }
 
-                <div style="margin-top: 30px; display:flex; gap: 15px; font-family:sans-serif;">
-                  <button onclick="window.print()" style="padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; background: #10b981; color: white; border: none; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">列印協議書</button>
-                  <button onclick="window.close()" style="padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; background: #3f3f46; color: white; border: none; border-radius: 6px;">關閉視窗</button>
-                </div>
-              </body>
-            </html>
-          `);
-          newWin.document.close();
+          // 4. 底圖處理：如果有 AI 圖就用 AI 圖，沒有就自己用程式碼畫一張！
+          if (base64Background) {
+             const img = new Image();
+             img.onload = () => { ctx.drawImage(img, 0, 0, 1024, 1024); renderTextAndOutput(); };
+             img.onerror = () => { drawFallbackBackgroundAndOutput(ctx, renderTextAndOutput); };
+             img.src = base64Background;
+          } else {
+             drawFallbackBackgroundAndOutput(ctx, renderTextAndOutput);
+          }
+
         } catch (error) {
           newWin.document.open();
-          newWin.document.write(`<h2 style="color:white; text-align:center; margin-top:20vh;">⚠️ 系統錯誤：無法連接聯合國伺服器。詳細錯誤：${error.message}</h2>`);
+          newWin.document.write(`<h2 style="color:white; text-align:center; margin-top:20vh;">⚠️ 系統錯誤：無法合成影像。 ${error.message}</h2>`);
           newWin.document.close();
-        } finally {
           setIsGeneratingTreaty(false);
         }
+      };
+
+      // Canvas 降級繪圖引擎 (如果沒有 AI 圖片，就用純程式碼畫出高質感的復古羊皮紙)
+      const drawFallbackBackgroundAndOutput = (ctx, renderCallback) => {
+         // 畫底色 (溫暖的羊皮紙色)
+         ctx.fillStyle = "#fdf6e3";
+         ctx.fillRect(0, 0, 1024, 1024);
+         
+         // 畫外框 (深咖啡色)
+         ctx.strokeStyle = "#5c4033";
+         ctx.lineWidth = 12;
+         ctx.strokeRect(30, 30, 964, 964);
+         
+         // 畫內線
+         ctx.lineWidth = 3;
+         ctx.strokeRect(50, 50, 924, 924);
+         
+         // 執行文字繪製
+         renderCallback();
       };
 
       const handleReset = () => {
@@ -423,20 +444,17 @@ ${conversation}`;
       return (
         <div className="min-h-screen bg-zinc-950 text-white font-mono flex flex-col items-center justify-center p-4 selection:bg-red-900">
           
-          {/* 頂部警語 */}
           <div className="w-full max-w-4xl bg-yellow-500 text-black font-bold text-center py-2 px-4 mb-4 flex items-center justify-center gap-2 border-b-4 border-yellow-700 uppercase tracking-widest animate-pulse shadow-[0_0_15px_rgba(234,179,8,0.5)]">
             <IconShieldAlert size={20} />
             <span>最高機密系統：禁止重新整理頁面，違者視為網攻，扣除60秒談判時間！</span>
             <IconShieldAlert size={20} />
           </div>
 
-          {/* 主控制箱 */}
           <div className="w-full max-w-4xl bg-zinc-900 border-8 border-zinc-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
             
             <div className="absolute inset-0 opacity-10 pointer-events-none" 
                  style={{ backgroundImage: 'radial-gradient(circle, #444 2px, transparent 2px)', backgroundSize: '20px 20px' }}></div>
 
-            {/* 頂部儀表板 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="bg-zinc-950 border-2 border-red-900 rounded p-4 flex flex-col items-center justify-center shadow-inner relative">
                 <div className="absolute top-2 left-2 text-xs text-red-500">SYS_STAT</div>
@@ -464,7 +482,6 @@ ${conversation}`;
               </div>
             </div>
 
-            {/* 談判終端機 */}
             <div className="bg-zinc-950 border border-zinc-700 rounded-t-lg h-64 md:h-80 overflow-y-auto p-4 mb-0 font-mono text-sm md:text-base relative shadow-inner">
               <div className="absolute top-0 left-0 w-full bg-zinc-800 text-zinc-400 text-xs px-2 py-1 flex justify-between sticky z-10">
                 <span>SECURE CHANNEL: UN_DIPLOMAT_LINK</span>
@@ -497,7 +514,6 @@ ${conversation}`;
               </div>
             </div>
 
-            {/* 輸入區域 */}
             <div className="bg-zinc-900 border border-t-0 border-zinc-700 rounded-b-lg p-4">
               <form onSubmit={handleNegotiate} className="flex gap-2">
                 <input
@@ -519,7 +535,6 @@ ${conversation}`;
               </form>
             </div>
 
-            {/* 遊戲結束覆蓋層 */}
             {gameState !== 'PLAYING' && (
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 p-6 text-center">
                 {gameState === 'LAUNCHED' && (
@@ -551,8 +566,8 @@ ${conversation}`;
                       disabled={isGeneratingTreaty}
                       className="bg-green-700 hover:bg-green-600 text-white border-2 border-green-500 px-8 py-4 rounded-lg font-bold tracking-widest uppercase transition-all hover:scale-105 shadow-[0_0_15px_rgba(34,197,94,0.5)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isGeneratingTreaty ? <IconRefreshCw size={20} className="animate-spin w-5 h-5" /> : <IconFileText size={20} className="w-5 h-5" />}
-                      {isGeneratingTreaty ? '生成協議中...' : '簽署和平協議'}
+                      {isGeneratingTreaty ? <IconRefreshCw size={20} className="animate-spin w-5 h-5" /> : <IconDownload size={20} className="w-5 h-5" />}
+                      {isGeneratingTreaty ? '生成協議中...' : '下載和平協議圖片'}
                     </button>
                   )}
                   
@@ -570,7 +585,6 @@ ${conversation}`;
       );
     }
 
-    // --- 將 React 元件渲染到 DOM 中 ---
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<NuclearBriefcase />);
   </script>
