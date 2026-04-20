@@ -68,7 +68,8 @@
     const IconDownload = ({ size=24, className="" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
 
     // --- 網路請求邏輯 ---
-    const fetchWithRetry = async (url, options, retries = 2, delay = 1000, timeout = 12000) => {
+    // 🌟 優化：將 timeout 從 12000(12秒) 延長至 45000(45秒)，避免長文生成時被強制切斷連線
+    const fetchWithRetry = async (url, options, retries = 2, delay = 1000, timeout = 45000) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       try {
@@ -261,7 +262,7 @@
             <head><title>生成協議中...</title></head>
             <body style="margin:0; background:#27272a; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:sans-serif; color:white; text-align:center;">
                <h2 style="animation: pulse 2s infinite;">聯合國文書處理中心連線中...</h2>
-               <p style="color:#a1a1aa;">正在將文字與簽署封印合成至實體卷軸，約需 10-15 秒，請稍候</p>
+               <p style="color:#a1a1aa;">正在將文字與簽署封印合成至實體卷軸，約需 10-25 秒，請耐心稍候</p>
                <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }</style>
             </body>
           </html>
@@ -278,6 +279,8 @@
 對話紀錄：\n${conversation}`;
 
           let textData = null;
+          let textError = null;
+          
           for (const model of aiModels) {
             try {
               const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
@@ -286,10 +289,16 @@
               });
               textData = await res.json();
               break;
-            } catch(err) { /* 忽略錯誤，繼續嘗試 */ }
+            } catch(err) { 
+              textError = err;
+              if (err.message.includes('403') || err.message.includes('400')) break; 
+            }
           }
           
-          if (!textData) throw new Error("無法取得 AI 生成之文字內容");
+          if (!textData) {
+             throw textError || new Error("無法取得 AI 生成之文字內容");
+          }
+          
           const treatyContent = textData.candidates[0].content.parts[0].text.trim();
 
           // 2. 準備 Canvas 進行終極渲染
@@ -396,7 +405,7 @@
                base64Background = `data:image/png;base64,${imageData.predictions[0].bytesBase64Encoded}`;
             }
           } catch(e) {
-            console.warn("Imagen 無法使用 (可能由於 API 金鑰權限)，啟動 Canvas 降級繪圖。");
+            console.warn("Imagen 無法使用，啟動 Canvas 降級繪圖。");
           }
 
           // 4. 底圖處理：如果有 AI 圖就用 AI 圖，沒有就自己用程式碼畫一張！
